@@ -27,8 +27,10 @@ def ask_ai(prompt):
     except Exception as error:
         return f"Something went wrong: {error}"
 
-user_question = input("Ask the AI something: ")
+def main():
+    user_question = input("Ask the AI something: ")
+    answer = ask_ai(user_question)
+    print(answer)
 
-answer = ask_ai(user_question)
-
-print(answer)
+if __name__ == "__main__":
+    main()
