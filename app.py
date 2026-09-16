@@ -5,19 +5,27 @@ from openai import OpenAI
 
 load_dotenv()
 
-client = OpenAI(
-    api_key=os.getenv("OPENAI_API_KEY")
-)
+api_key = os.getenv("OPENAI_API_KEY")
+
+if not api_key:
+    raise ValueError("OPENAI_API_KEY is missing from the .env file")
+
+client = OpenAI(api_key=api_key)
 
 
 def ask_ai(prompt):
-    response = client.responses.create(
-        model="gpt-5.6-luna",
-        input=prompt
-    )
+    if not prompt.strip():
+        return "Please enter a question."
 
-    return response.output_text
+    try:
+        response = client.responses.create(
+            model="gpt-5.6-luna",
+            input=prompt
+        )
+        return response.output_text
 
+    except Exception as error:
+        return f"Something went wrong: {error}"
 
 user_question = input("Ask the AI something: ")
 
