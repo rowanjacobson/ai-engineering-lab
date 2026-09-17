@@ -1,10 +1,9 @@
 import os
-
 from unittest.mock import patch
-
 from fastapi.testclient import TestClient
-
 from api import app
+from unittest.mock import patch
+from api import app, limiter
 
 client = TestClient(app)
 
@@ -51,3 +50,28 @@ def test_ask_with_valid_api_key(mock_ask_ai):
     assert response.json() == {
         "answer": "Authentication checks who is allowed to access a system."
     }
+
+@patch("api.ask_ai")
+def test_rate_limit(mock_ask_ai):
+    limiter.reset()
+
+    os.environ["APP_API_KEY"] = "correct-key"
+    mock_ask_ai.return_value = "ok"
+
+    headers = {"X-API-Key": "correct-key"}
+
+    for _ in range(10):
+        response = client.post(
+            "/ask",
+            headers=headers,
+            json={"prompt": "Hello"}
+        )
+        assert response.status_code == 200
+
+    response = client.post(
+        "/ask",
+        headers=headers,
+        json={"prompt": "Hello"}
+    )
+
+    assert response.status_code == 429
