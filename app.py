@@ -3,8 +3,16 @@ import os
 from dotenv import load_dotenv
 from openai import OpenAI
 
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s %(message)s"
+)
+
 load_dotenv()
 
+logger = logging.getLogger(__name__)
 
 def get_client():
     api_key = os.getenv("OPENAI_API_KEY")
@@ -29,8 +37,9 @@ def ask_ai(prompt):
 
         return response.output_text
 
-    except Exception as error:
-        return f"Something went wrong: {error}"
+    except Exception:
+            logger.exception("OpenAI request failed")
+            return "The AI service is temporarily unavailable."
 
 
 def main():
