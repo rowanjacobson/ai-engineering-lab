@@ -1,4 +1,5 @@
 import os
+from config import OPENAI_MODEL
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -31,7 +32,7 @@ def ask_ai(prompt):
         client = get_client()
 
         response = client.responses.create(
-            model="gpt-5.6-luna",
+            model=OPENAI_MODEL,
             input=prompt
         )
 
