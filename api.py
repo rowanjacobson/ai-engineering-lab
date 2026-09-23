@@ -1,5 +1,6 @@
 import os
 import secrets
+import logging
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -8,6 +9,14 @@ from slowapi.util import get_remote_address
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
+from config import APP_ENV, LOG_LEVEL, RATE_LIMIT
+
+logger = logging.getLogger(__name__)
+
+logging.basicConfig(
+    level=LOG_LEVEL,
+    format="%(asctime)s %(levelname)s %(name)s %(message)s"
+)
 
 from app import ask_ai
 
@@ -47,7 +56,7 @@ def health():
     return {"status": "ok"}
 
 @app.post("/ask", dependencies=[Depends(verify_api_key)])
-@limiter.limit("10/minute")
+@limiter.limit(RATE_LIMIT)
 def ask(request: Request, body: AskRequest):
     answer = ask_ai(body.prompt)
 
