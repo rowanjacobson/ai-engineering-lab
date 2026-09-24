@@ -12,7 +12,7 @@ logging.basicConfig(
 )
 
 load_dotenv()
-
+logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 def get_client():
