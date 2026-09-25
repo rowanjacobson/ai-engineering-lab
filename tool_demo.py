@@ -33,7 +33,10 @@ for item in response.output:
 
 import json
 
-tool_call = response.output[0]
+tool_call = next(
+    item for item in response.output
+    if item.type == "function_call"
+)
 
 arguments = json.loads(tool_call.arguments)
 
@@ -43,3 +46,18 @@ result = multiply(
 )
 
 print("Tool result:", result)
+
+final_response = client.responses.create(
+    model=OPENAI_MODEL,
+    previous_response_id=response.id,
+    input=[
+        {
+            "type": "function_call_output",
+            "call_id": tool_call.call_id,
+            "output": str(result),
+        }
+    ],
+    tools=[multiply_tool],
+)
+
+print(final_response.output_text)
