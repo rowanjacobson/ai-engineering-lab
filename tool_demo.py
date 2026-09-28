@@ -1,12 +1,16 @@
+import json
+
 from app import get_client
 from config import OPENAI_MODEL
-import json
+
 
 def multiply(a: float, b: float) -> float:
     return a * b
 
+
 def add(a: float, b: float) -> float:
     return a + b
+
 
 multiply_tool = {
     "type": "function",
@@ -16,12 +20,13 @@ multiply_tool = {
         "type": "object",
         "properties": {
             "a": {"type": "number"},
-            "b": {"type": "number"}
+            "b": {"type": "number"},
         },
         "required": ["a", "b"],
-        "additionalProperties": False
-    }
+        "additionalProperties": False,
+    },
 }
+
 
 add_tool = {
     "type": "function",
@@ -31,65 +36,71 @@ add_tool = {
         "type": "object",
         "properties": {
             "a": {"type": "number"},
-            "b": {"type": "number"}
+            "b": {"type": "number"},
         },
         "required": ["a", "b"],
-        "additionalProperties": False
-    }
+        "additionalProperties": False,
+    },
 }
+
 
 tools = [
     multiply_tool,
     add_tool,
 ]
 
-client = get_client()
 
 tool_functions = {
     "multiply": multiply,
     "add": add,
 }
 
+
+client = get_client()
+
 response = client.responses.create(
     model=OPENAI_MODEL,
-    input="What is 17 plus 23? always use a tool never calculate the answer yourself",
+    input="Add 5 and 7, then multiply the result by 3. Use tools.",
     tools=tools,
 )
 
-for item in response.output:
-    print(item)
 
-tool_calls = [
-    item for item in response.output
-    if item.type == "function_call"
-]
+while True:
+    tool_calls = [
+        item for item in response.output
+        if item.type == "function_call"
+    ]
 
+    if not tool_calls:
+        print(response.output_text)
+        break
 
-if not tool_calls:
-    print(response.output_text)
-else:
-    tool_call = tool_calls[0]
+    tool_outputs = []
 
-arguments = json.loads(tool_call.arguments)
+    for tool_call in tool_calls:
+        arguments = json.loads(tool_call.arguments)
 
+        tool_function = tool_functions[tool_call.name]
 
-tool_function = tool_functions[tool_call.name]
+        result = tool_function(**arguments)
 
-result = tool_function(**arguments)
+        print(
+            f"Tool: {tool_call.name}, "
+            f"Arguments: {arguments}, "
+            f"Result: {result}"
+        )
 
-print("Tool result:", result)
+        tool_outputs.append(
+            {
+                "type": "function_call_output",
+                "call_id": tool_call.call_id,
+                "output": str(result),
+            }
+        )
 
-final_response = client.responses.create(
-    model=OPENAI_MODEL,
-    previous_response_id=response.id,
-    input=[
-        {
-            "type": "function_call_output",
-            "call_id": tool_call.call_id,
-            "output": str(result),
-        }
-    ],
-    tools=tools,
-)
-
-print(final_response.output_text)
+    response = client.responses.create(
+        model=OPENAI_MODEL,
+        previous_response_id=response.id,
+        input=tool_outputs,
+        tools=tools,
+    )
