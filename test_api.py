@@ -75,3 +75,22 @@ def test_rate_limit(mock_ask_ai):
     )
 
     assert response.status_code == 429
+
+@patch("api.run_agent")
+def test_agent_endpoint(mock_run_agent):
+    os.environ["APP_API_KEY"] = "correct-key"
+
+    mock_run_agent.return_value = "The answer is 36."
+
+    response = client.post(
+        "/agent",
+        headers={"X-API-Key": "correct-key"},
+        json={
+            "prompt": "Add 5 and 7, then multiply by 3."
+        }
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "answer": "The answer is 36."
+    }

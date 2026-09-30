@@ -2,6 +2,8 @@ import os
 import secrets
 import logging
 
+from app import ask_ai
+from agent import run_agent
 from fastapi import Depends, FastAPI, HTTPException, Request
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -63,3 +65,14 @@ def ask(request: Request, body: AskRequest):
     return {
         "answer": answer
     }
+
+class AgentRequest(BaseModel):
+    prompt: str
+
+
+@app.post("/agent", dependencies=[Depends(verify_api_key)])
+@limiter.limit(RATE_LIMIT)
+def agent_endpoint(request: Request, body: AgentRequest):
+    answer = run_agent(body.prompt)
+
+    return {"answer": answer}
