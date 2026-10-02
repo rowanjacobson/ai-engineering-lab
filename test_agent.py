@@ -1,3 +1,4 @@
+import pytest
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -61,3 +62,69 @@ def test_run_agent_multi_step(mock_get_client):
 
     assert second_call.kwargs["input"][0]["output"] == "12"
     assert third_call.kwargs["input"][0]["output"] == "36"
+
+@patch("agent.get_client")
+def test_agent_iteration_limit(mock_get_client):
+
+    fake_client = MagicMock()
+
+    def fake_response(**kwargs):
+
+        return SimpleNamespace(
+            id="response_1",
+            output=[
+                SimpleNamespace(
+                    type="function_call",
+                    name="add",
+                    arguments='{"a": 1, "b": 2}',
+                    call_id="call_1",
+                )
+            ],
+            output_text="",
+        )
+
+    fake_client.responses.create.side_effect = fake_response
+
+    mock_get_client.return_value = fake_client
+
+    with pytest.raises(RuntimeError):
+        run_agent(
+            "Keep adding numbers",
+            max_iterations=3
+        )
+
+    assert fake_client.responses.create.call_count == 3
+
+@patch("agent.get_client")
+def test_agent_tool_limit(mock_get_client):
+    fake_client = MagicMock()
+
+    # Simulate the LLM requesting three tools simultaneously.
+    fake_response = SimpleNamespace(
+        id="response_1",
+        output=[
+            SimpleNamespace(
+                type="function_call",
+                name="add",
+                arguments='{"a": 1, "b": 2}',
+                call_id=f"call_{i}",
+            )
+            for i in range(3)
+        ],
+        output_text="",
+    )
+
+    fake_client.responses.create.return_value = fake_response
+    mock_get_client.return_value = fake_client
+
+    with pytest.raises(
+        RuntimeError,
+        match="Agent exceeded maximum tool executions"
+    ):
+        run_agent(
+            "Perform three calculations",
+            max_iterations=5,
+            max_tool_calls=2,
+        )
+
+    assert fake_client.responses.create.call_count == 1

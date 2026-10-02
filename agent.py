@@ -56,7 +56,14 @@ tool_functions = {
 }
 
 
-def run_agent(prompt: str) -> str:
+def run_agent(prompt: str, max_iterations: int = 5,max_tool_calls: int = 10) -> str:
+
+    if max_iterations < 1:
+        raise ValueError("max_iterations must be at least 1")
+
+    if max_tool_calls < 1:
+        raise ValueError("max_tool_calls must be at least 1")
+
     client = get_client()
 
     response = client.responses.create(
@@ -65,23 +72,42 @@ def run_agent(prompt: str) -> str:
         tools=tools,
     )
 
+    iterations = 1
+    tool_calls_executed = 0
+    
     while True:
+
         tool_calls = [
             item for item in response.output
             if item.type == "function_call"
         ]
 
+        # If no further tools are requested, return the answer.
         if not tool_calls:
             return response.output_text
+
+        # Stop if another model request would exceed our limit.
+        if iterations >= max_iterations:
+            raise RuntimeError(
+                "Agent exceeded maximum iterations"
+            )
 
         tool_outputs = []
 
         for tool_call in tool_calls:
+
+            if tool_calls_executed >= max_tool_calls:
+                raise RuntimeError(
+                    "Agent exceeded maximum tool executions"
+                )
+
             arguments = json.loads(tool_call.arguments)
 
             tool_function = tool_functions[tool_call.name]
 
             result = tool_function(**arguments)
+
+            tool_calls_executed += 1
 
             tool_outputs.append(
                 {
@@ -97,3 +123,5 @@ def run_agent(prompt: str) -> str:
             input=tool_outputs,
             tools=tools,
         )
+
+        iterations += 1
