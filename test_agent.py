@@ -60,8 +60,8 @@ def test_run_agent_multi_step(mock_get_client):
     second_call = calls[1]
     third_call = calls[2]
 
-    assert second_call.kwargs["input"][0]["output"] == "12"
-    assert third_call.kwargs["input"][0]["output"] == "36"
+    assert second_call.kwargs["input"][0]["output"] == "12.0"
+    assert third_call.kwargs["input"][0]["output"] == "36.0"
 
 @patch("agent.get_client")
 def test_agent_iteration_limit(mock_get_client):
@@ -128,3 +128,28 @@ def test_agent_tool_limit(mock_get_client):
         )
 
     assert fake_client.responses.create.call_count == 1
+
+@patch("agent.get_client")
+def test_agent_rejects_invalid_arguments(mock_get_client):
+    fake_client = MagicMock()
+
+    fake_client.responses.create.return_value = SimpleNamespace(
+        id="response_1",
+        output=[
+            SimpleNamespace(
+                type="function_call",
+                name="add",
+                arguments='{"a": "banana", "b": 7}',
+                call_id="call_1",
+            )
+        ],
+        output_text="",
+    )
+
+    mock_get_client.return_value = fake_client
+
+    with pytest.raises(
+        ValueError,
+        match="Invalid arguments for tool add"
+    ):
+        run_agent("Add banana and 7")
