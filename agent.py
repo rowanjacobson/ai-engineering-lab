@@ -2,6 +2,7 @@ import json
 
 from app import get_client
 from config import OPENAI_MODEL
+from pydantic import BaseModel, ValidationError
 
 
 def multiply(a: float, b: float) -> float:
@@ -11,6 +12,19 @@ def multiply(a: float, b: float) -> float:
 def add(a: float, b: float) -> float:
     return a + b
 
+class MultiplyArgs(BaseModel):
+    a: float
+    b: float
+
+
+class AddArgs(BaseModel):
+    a: float
+    b: float
+
+tool_argument_models = {
+    "multiply": MultiplyArgs,
+    "add": AddArgs,
+}
 
 multiply_tool = {
     "type": "function",
@@ -103,9 +117,24 @@ def run_agent(prompt: str, max_iterations: int = 5,max_tool_calls: int = 10) -> 
 
             arguments = json.loads(tool_call.arguments)
 
-            tool_function = tool_functions[tool_call.name]
+            tool_function = tool_functions.get(tool_call.name)
+            argument_model = tool_argument_models.get(tool_call.name)
 
-            result = tool_function(**arguments)
+            if tool_function is None or argument_model is None:
+                    raise ValueError(
+                        f"Unknown tool requested: {tool_call.name}"
+                    )
+            try:
+                    validated_arguments = argument_model(**arguments)
+
+            except ValidationError as error:
+                raise ValueError(
+                    f"Invalid arguments for tool {tool_call.name}: {error}"
+                )
+
+            result = tool_function(
+            **validated_arguments.model_dump()
+            )
 
             tool_calls_executed += 1
 
