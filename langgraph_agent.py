@@ -6,8 +6,7 @@ from langchain_openai import ChatOpenAI
 from config import OPENAI_MODEL
 from langchain_core.tools import tool
 from langgraph.prebuilt import ToolNode
-
-
+from langgraph.checkpoint.memory import InMemorySaver
 
 llm = ChatOpenAI(
     model=OPENAI_MODEL,
@@ -57,15 +56,35 @@ builder.add_conditional_edges(
 
 builder.add_edge("tools", "llm")
 
-graph = builder.compile()
+memory = InMemorySaver()
+
+graph = builder.compile(checkpointer=memory)
+
+config = {
+    "configurable": {
+        "thread_id": "conversation-1"
+    }
+}
+
+result = graph.invoke(
+    {
+        "messages": [
+            HumanMessage(content="My name is Rowan.")
+        ]
+    },
+    config=config,
+)
+
+print(result["messages"][-1].content)
 
 
 result = graph.invoke(
     {
         "messages": [
-            HumanMessage(content="What is 5 plus 7?")
+            HumanMessage(content="What is my name?")
         ]
-    }
+    },
+    config=config,
 )
 
 print(result["messages"][-1].content)
