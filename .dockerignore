@@ -1,0 +1,6 @@
+.venv
+.git
+__pycache__
+.env
+checkpoints.db
+.DS_Store
