@@ -1,14 +1,11 @@
-import sqlite3
-
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
-
 from langgraph.graph import StateGraph, START, END, MessagesState
 from langgraph.prebuilt import ToolNode
-from langgraph.checkpoint.sqlite import SqliteSaver
-
 from config import OPENAI_MODEL
+from langgraph.checkpoint.postgres import PostgresSaver
+from config import OPENAI_MODEL, DATABASE_URL
 
 
 # --------------------------------------------------
@@ -79,20 +76,16 @@ builder.add_edge("tools", "llm")
 
 
 # --------------------------------------------------
-# 5. Persistent SQLite memory
+# 5. Persistent Postgres memory
 # --------------------------------------------------
 
-connection = sqlite3.connect(
-    "checkpoints.db",
-    check_same_thread=False
-)
+memory = PostgresSaver.from_conn_string(DATABASE_URL)
 
-memory = SqliteSaver(connection)
+memory.setup()
 
 graph = builder.compile(
     checkpointer=memory
 )
-
 
 # --------------------------------------------------
 # 6. Conversation configuration
