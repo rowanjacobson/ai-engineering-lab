@@ -4,9 +4,7 @@ from langchain_core.tools import tool
 
 from langgraph.graph import StateGraph, START, END, MessagesState
 from langgraph.prebuilt import ToolNode
-from langgraph.checkpoint.postgres import PostgresSaver
-
-from config import OPENAI_MODEL, DATABASE_URL
+from config import OPENAI_MODEL
 
 
 # --------------------------------------------------
@@ -102,37 +100,7 @@ builder.add_edge(
 # 6. Reusable agent function
 # --------------------------------------------------
 
-def run_langgraph_agent(
-    message: str,
-    thread_id: str,
-) -> str:
-
-    config = {
-        "configurable": {
-            "thread_id": thread_id
-        }
-    }
-
-    with PostgresSaver.from_conn_string(
-        DATABASE_URL
-    ) as memory:
-
-        # Create LangGraph checkpoint tables if needed.
-        memory.setup()
-
-        graph = builder.compile(
-            checkpointer=memory
-        )
-
-        result = graph.invoke(
-            {
-                "messages": [
-                    HumanMessage(
-                        content=message
-                    )
-                ]
-            },
-            config=config,
-        )
-
-    return result["messages"][-1].content
+def build_graph(memory):
+    return builder.compile(
+        checkpointer=memory
+    )
