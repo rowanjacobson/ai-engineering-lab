@@ -1,25 +1,16 @@
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
+
 from langgraph.graph import StateGraph, START, END, MessagesState
 from langgraph.prebuilt import ToolNode
-from config import OPENAI_MODEL
 from langgraph.checkpoint.postgres import PostgresSaver
+
 from config import OPENAI_MODEL, DATABASE_URL
 
 
 # --------------------------------------------------
-# 1. Configure model
-# --------------------------------------------------
-
-llm = ChatOpenAI(
-    model=OPENAI_MODEL,
-    reasoning_effort="none"
-)
-
-
-# --------------------------------------------------
-# 2. Define tools
+# 1. Define tools
 # --------------------------------------------------
 
 @tool
@@ -30,9 +21,20 @@ def add(a: float, b: float) -> float:
 
 tools = [add]
 
-llm_with_tools = llm.bind_tools(tools)
-
 tool_node = ToolNode(tools)
+
+
+# --------------------------------------------------
+# 2. Create the LLM only when needed
+# --------------------------------------------------
+
+def get_llm_with_tools():
+    llm = ChatOpenAI(
+        model=OPENAI_MODEL,
+        reasoning_effort="none",
+    )
+
+    return llm.bind_tools(tools)
 
 
 # --------------------------------------------------
@@ -40,12 +42,20 @@ tool_node = ToolNode(tools)
 # --------------------------------------------------
 
 def llm_node(state: MessagesState):
-    response = llm_with_tools.invoke(state["messages"])
+    llm_with_tools = get_llm_with_tools()
+
+    response = llm_with_tools.invoke(
+        state["messages"]
+    )
 
     return {
         "messages": [response]
     }
 
+
+# --------------------------------------------------
+# 4. Decide whether to use a tool or finish
+# --------------------------------------------------
 
 def should_continue(state: MessagesState):
     last_message = state["messages"][-1]
@@ -57,60 +67,72 @@ def should_continue(state: MessagesState):
 
 
 # --------------------------------------------------
-# 4. Build graph
+# 5. Build graph structure
 # --------------------------------------------------
 
 builder = StateGraph(MessagesState)
 
-builder.add_node("llm", llm_node)
-builder.add_node("tools", tool_node)
+builder.add_node(
+    "llm",
+    llm_node,
+)
 
-builder.add_edge(START, "llm")
+builder.add_node(
+    "tools",
+    tool_node,
+)
+
+builder.add_edge(
+    START,
+    "llm",
+)
 
 builder.add_conditional_edges(
     "llm",
     should_continue,
 )
 
-builder.add_edge("tools", "llm")
-
-
-# --------------------------------------------------
-# 5. Persistent Postgres memory
-# --------------------------------------------------
-
-memory = PostgresSaver.from_conn_string(DATABASE_URL)
-
-memory.setup()
-
-graph = builder.compile(
-    checkpointer=memory
+builder.add_edge(
+    "tools",
+    "llm",
 )
 
+
 # --------------------------------------------------
-# 6. Conversation configuration
+# 6. Reusable agent function
 # --------------------------------------------------
 
-config = {
-    "configurable": {
-        "thread_id": "sqlite-test-1"
+def run_langgraph_agent(
+    message: str,
+    thread_id: str,
+) -> str:
+
+    config = {
+        "configurable": {
+            "thread_id": thread_id
+        }
     }
-}
 
+    with PostgresSaver.from_conn_string(
+        DATABASE_URL
+    ) as memory:
 
-# --------------------------------------------------
-# 7. Run conversation
-# --------------------------------------------------
+        # Create LangGraph checkpoint tables if needed.
+        memory.setup()
 
-result = graph.invoke(
-    {
-        "messages": [
-            HumanMessage(
-                content="what is my favourite animal"
-            )
-        ]
-    },
-    config=config,
-)
+        graph = builder.compile(
+            checkpointer=memory
+        )
 
-print(result["messages"][-1].content)
+        result = graph.invoke(
+            {
+                "messages": [
+                    HumanMessage(
+                        content=message
+                    )
+                ]
+            },
+            config=config,
+        )
+
+    return result["messages"][-1].content
