@@ -10,17 +10,7 @@ from config import OPENAI_MODEL, DATABASE_URL
 
 
 # --------------------------------------------------
-# 1. Configure the model
-# --------------------------------------------------
-
-llm = ChatOpenAI(
-    model=OPENAI_MODEL,
-    reasoning_effort="none",
-)
-
-
-# --------------------------------------------------
-# 2. Define tools
+# 1. Define tools
 # --------------------------------------------------
 
 @tool
@@ -31,16 +21,29 @@ def add(a: float, b: float) -> float:
 
 tools = [add]
 
-llm_with_tools = llm.bind_tools(tools)
-
 tool_node = ToolNode(tools)
 
 
 # --------------------------------------------------
-# 3. Define the LLM node
+# 2. Create the LLM only when needed
+# --------------------------------------------------
+
+def get_llm_with_tools():
+    llm = ChatOpenAI(
+        model=OPENAI_MODEL,
+        reasoning_effort="none",
+    )
+
+    return llm.bind_tools(tools)
+
+
+# --------------------------------------------------
+# 3. Define graph nodes
 # --------------------------------------------------
 
 def llm_node(state: MessagesState):
+    llm_with_tools = get_llm_with_tools()
+
     response = llm_with_tools.invoke(
         state["messages"]
     )
@@ -51,7 +54,7 @@ def llm_node(state: MessagesState):
 
 
 # --------------------------------------------------
-# 4. Decide whether to call tools or finish
+# 4. Decide whether to use a tool or finish
 # --------------------------------------------------
 
 def should_continue(state: MessagesState):
@@ -64,7 +67,7 @@ def should_continue(state: MessagesState):
 
 
 # --------------------------------------------------
-# 5. Build the graph structure
+# 5. Build graph structure
 # --------------------------------------------------
 
 builder = StateGraph(MessagesState)
@@ -96,7 +99,7 @@ builder.add_edge(
 
 
 # --------------------------------------------------
-# 6. Reusable LangGraph agent function
+# 6. Reusable agent function
 # --------------------------------------------------
 
 def run_langgraph_agent(
@@ -114,7 +117,7 @@ def run_langgraph_agent(
         DATABASE_URL
     ) as memory:
 
-        # Creates the LangGraph checkpoint tables if needed.
+        # Create LangGraph checkpoint tables if needed.
         memory.setup()
 
         graph = builder.compile(
