@@ -12,6 +12,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 from config import APP_ENV, LOG_LEVEL, RATE_LIMIT
+from langgraph_agent import run_langgraph_agent
 
 logger = logging.getLogger(__name__)
 
@@ -67,12 +68,24 @@ def ask(request: Request, body: AskRequest):
     }
 
 class AgentRequest(BaseModel):
-    prompt: str
+    message: str
+    thread_id: str
 
 
-@app.post("/agent", dependencies=[Depends(verify_api_key)])
+@app.post(
+    "/agent",
+    dependencies=[Depends(verify_api_key)]
+)
 @limiter.limit(RATE_LIMIT)
-def agent_endpoint(request: Request, body: AgentRequest):
-    answer = run_agent(body.prompt)
+def agent_endpoint(
+    request: Request,
+    body: AgentRequest,
+):
+    answer = run_langgraph_agent(
+        message=body.message,
+        thread_id=body.thread_id,
+    )
 
-    return {"answer": answer}
+    return {
+        "answer": answer
+    }

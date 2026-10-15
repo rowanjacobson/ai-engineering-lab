@@ -76,21 +76,28 @@ def test_rate_limit(mock_ask_ai):
 
     assert response.status_code == 429
 
-@patch("api.run_agent")
-def test_agent_endpoint(mock_run_agent):
+
+@patch("api.run_langgraph_agent")
+def test_agent_endpoint(mock_run_langgraph_agent):
     os.environ["APP_API_KEY"] = "correct-key"
 
-    mock_run_agent.return_value = "The answer is 36."
+    mock_run_langgraph_agent.return_value = "The answer is 36."
 
     response = client.post(
         "/agent",
         headers={"X-API-Key": "correct-key"},
         json={
-            "prompt": "Add 5 and 7, then multiply by 3."
-        }
+            "message": "Add 5 and 7, then multiply by 3.",
+            "thread_id": "test-thread-1",
+        },
     )
 
     assert response.status_code == 200
     assert response.json() == {
         "answer": "The answer is 36."
     }
+
+    mock_run_langgraph_agent.assert_called_once_with(
+        message="Add 5 and 7, then multiply by 3.",
+        thread_id="test-thread-1",
+    )
